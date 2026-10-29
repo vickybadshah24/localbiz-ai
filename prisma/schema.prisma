@@ -1,0 +1,116 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// NOTE: SQLite + Prisma does not support enums or Json columns.
+// Enum-like fields are stored as validated strings (see src/server/schemas).
+
+model Business {
+  id                String   @id @default(cuid())
+  name              String
+  industry          String   @default("Local Business")
+  phone             String?
+  email             String?
+  address           String?
+  timezone          String   @default("UTC")
+  // JSON string: { "mon": {"closed": false, "open": "09:00", "close": "18:00"}, ... }
+  workingHours      String   @default("{}")
+  aiPersona         String   @default("Friendly, concise and professional.")
+  autoReply         Boolean  @default(true)
+  whatsappConnected Boolean  @default(false)
+  whatsappNumber    String?
+  verifyToken       String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  services  Service[]
+  bookings  Booking[]
+  inquiries Inquiry[]
+  knowledge KnowledgeEntry[]
+}
+
+model Service {
+  id          String  @id @default(cuid())
+  businessId  String
+  name        String
+  description String?
+  durationMin Int
+  priceCents  Int
+  active      Boolean @default(true)
+  createdAt   DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+}
+
+model Booking {
+  id            String   @id @default(cuid())
+  businessId    String
+  serviceId     String?
+  customerName  String
+  customerPhone String?
+  startsAt      DateTime
+  endsAt        DateTime
+  // PENDING | CONFIRMED | CANCELLED | COMPLETED
+  status        String   @default("PENDING")
+  notes         String?
+  // MANUAL | WEB_CHAT | WHATSAPP | AI
+  source        String   @default("MANUAL")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  service  Service? @relation(fields: [serviceId], references: [id])
+
+  @@index([businessId, startsAt])
+}
+
+model Inquiry {
+  id            String   @id @default(cuid())
+  businessId    String
+  customerName  String
+  customerPhone String?
+  // WEB_CHAT | WHATSAPP
+  channel       String   @default("WEB_CHAT")
+  // OPEN | RESOLVED
+  status        String   @default("OPEN")
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  business Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@index([businessId, lastMessageAt])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  inquiryId String
+  // CUSTOMER | ASSISTANT | OWNER
+  role      String
+  content   String
+  createdAt DateTime @default(now())
+
+  inquiry Inquiry @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+
+  @@index([inquiryId, createdAt])
+}
+
+model KnowledgeEntry {
+  id         String   @id @default(cuid())
+  businessId String
+  title      String
+  content    String
+  // pricing | policy | faq | services | general
+  category   String   @default("general")
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+}

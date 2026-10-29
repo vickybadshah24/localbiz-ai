@@ -1,0 +1,50 @@
+# LocalBiz AI — production deployment for the target monorepo layout
+# (frontend/ Next.js + backend/ FastAPI + Postgres).
+#
+#   docker compose up --build
+#
+# NOTE: the sandbox implementation in this workspace is a Next.js fullstack
+# variant (frontend + backend merged). This compose file reflects the split
+# deployment described in the repository README.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: localbiz
+      POSTGRES_PASSWORD: localbiz
+      POSTGRES_DB: localbiz
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U localbiz"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql://localbiz:localbiz@db:5432/localbiz
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
+      WHATSAPP_GRAPH_VERSION: ${WHATSAPP_GRAPH_VERSION:-v21.0}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build: ./frontend
+    environment:
+      # Browser/server-side API base for the FastAPI backend
+      NEXT_PUBLIC_API_BASE: http://backend:8000
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+
+volumes:
+  pgdata:
